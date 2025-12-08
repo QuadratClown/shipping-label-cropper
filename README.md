@@ -16,7 +16,7 @@ The DHL Label Cropper is an online tool designed to crop DHL transport (waybill)
 
 To use the DHL Label Cropper, follow these steps:
 
-1. Go to the website [quadratclown.github.io/dhl-label-cropper/](https://quadratclown.github.io/dhl-label-cropper/).
+1. Go to the website [quadratclown.github.io/dhl-label-cropper](https://quadratclown.github.io/dhl-label-cropper/).
 2. Select your label size
 3. Upload your DHL labels (it works locally in the browser, no data is actually uploaded to the cloud).
 4. Download or print the cropped labels
