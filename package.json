@@ -1,5 +1,5 @@
 {
-  "name": "dhl-4x6-label",
+  "name": "dhl-label-cropper",
   "version": "0.1.0",
   "private": true,
   "scripts": {

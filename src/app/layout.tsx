@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'DHL 4x6" Label Cropper',
-  description: 'Crop a DHL transport label into a 4x6" PDF for printing',
+  title: 'DHL Label Cropper',
+  description: 'Crop DHL transport labels into PDF files for printing',
 };
 
 export default function RootLayout({
