@@ -1,8 +1,9 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { PDFDocument } from "pdf-lib";
 import { CloudUpload } from "lucide-react";
+import Cookies from "js-cookie";
 import Footer from "@/components/Footer";
 
 export default function Page() {
@@ -10,6 +11,13 @@ export default function Page() {
   const [selectedFiles, setFiles] = useState<File[] | null>(null);
   const [croppedPdf, setCroppedPdf] = useState<Uint8Array | null>(null);
   const [croppedPdfUrl, setCroppedPdfUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const savedFormat = Cookies.get('labelFormat') as '4x6' | '103x109' | undefined;
+    if (savedFormat) {
+      setLabelFormat(savedFormat);
+    }
+  }, []);
 
   const cropPdf = async (files: File[]) => {
     const mergedPdf = await PDFDocument.create();
@@ -96,18 +104,22 @@ export default function Page() {
             Crop DHL transport labels into a PDF for printing
           </p>
         </div>
-        <div className="w-full flex flex-col gap-2">
-          <label className="font-medium text-sm text-neutral-700 dark:text-neutral-300">
+        <div className="w-full flex flex-col gap-3">
+          <label className="font-semibold text-sm text-neutral-700 dark:text-neutral-300 uppercase tracking-wide">
             Label Format
           </label>
 
           <select
             value={labelFormat}
-            onChange={(e) => setLabelFormat(e.target.value as '4x6' | '103x109')}
-            className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => {
+              const newFormat = e.target.value as '4x6' | '103x109';
+              setLabelFormat(newFormat);
+              Cookies.set('labelFormat', newFormat, { expires: 365 });
+            }}
+            className="w-full rounded-lg border-2 border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-3 text-sm font-medium text-neutral-900 dark:text-neutral-100 shadow-sm transition-all duration-200 cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 focus:border-blue-500"
           >
-            <option value="4x6">4" × 6"</option>
-            <option value="103x109">103mm × 109mm</option>
+            <option value="4x6">4" × 6" (US)</option>
+            <option value="103x109">103mm × 109mm (Germany)</option>
           </select>
         </div>
         {!croppedPdf && (

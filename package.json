@@ -12,6 +12,7 @@
     "@react-pdf-viewer/core": "^3.12.0",
     "@react-pdf-viewer/default-layout": "^3.12.0",
     "@react-pdf-viewer/zoom": "^3.12.0",
+    "js-cookie": "^3.0.5",
     "lucide-react": "^0.556.0",
     "next": "16.0.7",
     "pdf-lib": "^1.17.1",
@@ -22,13 +23,14 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4.1.17",
+    "@types/js-cookie": "^3.0.6",
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
     "tailwindcss": "^4.1.17",
-    "@tailwindcss/postcss": "^4.1.17",
     "typescript": "^5"
   }
 }
