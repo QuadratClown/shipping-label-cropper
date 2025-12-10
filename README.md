@@ -1,11 +1,13 @@
 
-# DHL Label Cropper
+# Shipping Label Cropper
 
-The DHL Label Cropper is an online tool designed to crop DHL transport (waybill) labels to a size that can be printed via standard label printers. When shipping with DHL, you often receive transport labels in A4 format. The provided PDF is split into one side being that actual label, the other being additional information (or completely empty). This tool allows you to convert the original label into a properly sized label for printing on standard label printers.
+The Shipping Label Cropper is an online tool designed to crop shipping labels to a size that can be printed via standard label printers. Some when shipping with some companies such as DHL, you often receive transport labels in a format not made for label printers like A4. This tool allows you to crop the original document into a properly sized label for printing on standard label printers. You can choose from predefined formats or define your own cropping format to crop arbitrary shipping labels to size. It allows batch cropping of multiple labels at once and printing directly from the browser.
 
 ## Features
 
-- Upload and crop DHL transport labels to 4"x6" (US) or 103mm x 109mm (Germany)
+- Upload and crop transport labels to size
+  - choose from predefined formats for DHL A4 4"x6" or 103mm x 109mm labels
+  - define custom formats which are stored locally in your browser
 - Executes fully local in browser
 - Supports Drag & Drop
 - Supports multiple PDF files at once - all cropped labels will be merged into one file
@@ -14,16 +16,12 @@ The DHL Label Cropper is an online tool designed to crop DHL transport (waybill)
 
 ## Usage
 
-To use the DHL Label Cropper, follow these steps:
+To use the Shipping Label Cropper, follow these steps:
 
-1. Go to the website [quadratclown.github.io/dhl-label-cropper](https://quadratclown.github.io/dhl-label-cropper/).
-2. Select your label size
-3. Upload your DHL labels (it works locally in the browser, no data is actually uploaded to the cloud).
+1. Go to the website [quadratclown.github.io/shipping-label-cropper](https://quadratclown.github.io/shipping-label-cropper).
+2. Select your label size or create your own
+3. Upload your labels (it works locally in the browser, no data is actually uploaded to the cloud).
 4. Download or print the cropped labels
-
-## Contributing
-
-Contributions are welcome! Please fork the repository and submit a pull request.
 
 ## Contact
 

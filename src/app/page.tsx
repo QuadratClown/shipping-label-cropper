@@ -120,7 +120,7 @@ export default function Page() {
       link.href = URL.createObjectURL(blob);
       link.download = `${selectedFiles?.length == 1 ?
         selectedFiles[0]?.name.replace(".pdf", "") :
-        `DHL-labels-${new Date().toISOString().split("T")[0]}`
+        `Shipping-labels-${new Date().toISOString().split("T")[0]}`
         }-cropped.pdf`;
       link.click();
     }
@@ -149,10 +149,10 @@ export default function Page() {
       <div className="w-full max-w-2xl flex flex-col items-center justify-center gap-6">
         <div className="flex flex-col items-center justify-center gap-2">
           <h1 className="text-4xl font-bold text-neutral-800 dark:text-neutral-200">
-            DHL Label Cropper
+            Shipping Label Cropper
           </h1>
           <p className="text-neutral-600 dark:text-neutral-400">
-            Crop DHL transport labels into a PDF for printing
+            Crop shipping transport labels into a PDF for printing
           </p>
         </div>
         <div className="w-full flex flex-col gap-3">
@@ -177,8 +177,8 @@ export default function Page() {
               }}
               className="flex-1 rounded-lg border-2 border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-3 text-sm font-medium text-neutral-900 dark:text-neutral-100 shadow-sm transition-all duration-200 cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 focus:border-blue-500"
             >
-              <option value="4x6">DHL US (4" × 6")</option>
-              <option value="103x109">DHL Germany (103mm × 109mm)</option>
+              <option value="4x6">DHL A4 (4" × 6")</option>
+              <option value="103x109">DHL A4 (103mm × 109mm)</option>
               {customFormats.map((format) => (
                 <option key={format.id} value={format.id}>{format.name}</option>
               ))}

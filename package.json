@@ -1,5 +1,5 @@
 {
-  "name": "dhl-label-cropper",
+  "name": "shipping-label-cropper",
   "version": "0.1.0",
   "private": true,
   "scripts": {
