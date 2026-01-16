@@ -13,13 +13,21 @@ interface CustomFormat {
   cropArea: { x: number, y: number, width: number, height: number };
 }
 
+interface SelectedPage {
+  fileIndex: number;
+  pageIndex: number;
+  fileName: string;
+}
+
 export default function Page() {
   const [labelFormat, setLabelFormat] = useState<'4x6' | '103x109' | string>('4x6');
   const [selectedFiles, setFiles] = useState<File[] | null>(null);
+  const [selectedPages, setSelectedPages] = useState<SelectedPage[]>([]);
   const [croppedPdf, setCroppedPdf] = useState<Uint8Array | null>(null);
   const [croppedPdfUrl, setCroppedPdfUrl] = useState<string | null>(null);
   const [customFormats, setCustomFormats] = useState<CustomFormat[]>([]);
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
+  const [hoveredPageIndex, setHoveredPageIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const savedFormat = Cookies.get('labelFormat') as string | undefined;
@@ -48,22 +56,24 @@ export default function Page() {
     }
   };
 
-  const cropPdfWithFormat = async (files: File[], format: string, formats: CustomFormat[] = customFormats) => {
+  const cropPdfWithFormat = async (files: File[], format: string, formats: CustomFormat[] = customFormats, pagesToInclude?: SelectedPage[]) => {
     const cropArea = getCropAreaForFormat(format, formats);
     if (!cropArea) {
       alert("Invalid format selected");
       return;
     }
-
     const mergedPdf = await PDFDocument.create();
     for (const file of files) {
       const arrayBuffer = await file.arrayBuffer();
       const pdfDoc = await PDFDocument.load(arrayBuffer);
       const pages = pdfDoc.getPages();
-      const firstPage = pages[0];
-      firstPage.setCropBox(cropArea.x, cropArea.y, cropArea.width, cropArea.height);
-      const pageCopies = await mergedPdf.copyPages(pdfDoc, [0])
-      mergedPdf.addPage(pageCopies[0]);
+      for (const [i, page] of pages.entries()) {
+        page.setCropBox(cropArea.x, cropArea.y, cropArea.width, cropArea.height);
+      }
+      const pageCopies = await mergedPdf.copyPages(pdfDoc, pages.keys().toArray())
+      for (const page of pageCopies) {
+        mergedPdf.addPage(page);
+      }
     }
     const croppedPdfBytes = await mergedPdf.save();
     setCroppedPdf(croppedPdfBytes);
@@ -71,8 +81,49 @@ export default function Page() {
     setCroppedPdfUrl(URL.createObjectURL(blob));
   };
 
+  const buildPdfFromPages = async (files: File[], pages: SelectedPage[], format: string) => {
+    const cropArea = getCropAreaForFormat(format);
+    if (!cropArea) {
+      alert("Invalid format selected");
+      return;
+    }
+    const mergedPdf = await PDFDocument.create();
+
+    for (const pageInfo of pages) {
+      const file = files[pageInfo.fileIndex];
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const page = pdfDoc.getPage(pageInfo.pageIndex);
+      page.setCropBox(cropArea.x, cropArea.y, cropArea.width, cropArea.height);
+
+      const [pageCopy] = await mergedPdf.copyPages(pdfDoc, [pageInfo.pageIndex]);
+      mergedPdf.addPage(pageCopy);
+    }
+
+    const croppedPdfBytes = await mergedPdf.save();
+    setCroppedPdf(croppedPdfBytes);
+    const blob = new Blob([croppedPdfBytes as BlobPart], { type: "application/pdf" });
+    setCroppedPdfUrl(URL.createObjectURL(blob));
+  };
+
   const cropPdf = async (files: File[]) => {
-    await cropPdfWithFormat(files, labelFormat);
+    // Extract all pages from all files
+    const allPages: SelectedPage[] = [];
+    for (let fileIdx = 0; fileIdx < files.length; fileIdx++) {
+      const file = files[fileIdx];
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const pageCount = pdfDoc.getPageCount();
+      for (let pageIdx = 0; pageIdx < pageCount; pageIdx++) {
+        allPages.push({
+          fileIndex: fileIdx,
+          pageIndex: pageIdx,
+          fileName: file.name,
+        });
+      }
+    }
+    setSelectedPages(allPages);
+    await buildPdfFromPages(files, allPages, labelFormat);
   };
 
   const handleAddCustomFormat = (formatName: string, cropArea: { x: number, y: number, width: number, height: number }) => {
@@ -88,10 +139,10 @@ export default function Page() {
     setLabelFormat(newFormat.id);
     Cookies.set('labelFormat', newFormat.id, { expires: 365 });
     setIsCustomModalOpen(false);
-    
+
     // Trigger recrop with the new format if files are selected
-    if (selectedFiles && selectedFiles.length > 0) {
-      cropPdfWithFormat(selectedFiles, newFormat.id, updatedFormats);
+    if (selectedFiles && selectedFiles.length > 0 && selectedPages.length > 0) {
+      buildPdfFromPages(selectedFiles, selectedPages, newFormat.id);
     }
   };
 
@@ -118,10 +169,14 @@ export default function Page() {
       const blob = new Blob([croppedPdf as BlobPart], { type: "application/pdf" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = `${selectedFiles?.length == 1 ?
-        selectedFiles[0]?.name.replace(".pdf", "") :
-        `Shipping-labels-${new Date().toISOString().split("T")[0]}`
-        }-cropped.pdf`;
+      
+      // Get unique files from selected pages
+      const uniqueFiles = new Set(selectedPages.map(p => p.fileName));
+      
+      link.download = `${uniqueFiles.size === 1 ?
+        Array.from(uniqueFiles)[0].replace(".pdf", "") :
+        `${new Date().toISOString().split("T")[0]}`
+        }_Shipping-labels_cropped.pdf`;
       link.click();
     }
   };
@@ -170,8 +225,8 @@ export default function Page() {
                 } else {
                   setLabelFormat(newFormat);
                   Cookies.set('labelFormat', newFormat, { expires: 365 });
-                  if (selectedFiles && selectedFiles.length > 0) {
-                    await cropPdfWithFormat(selectedFiles, newFormat);
+                  if (selectedFiles && selectedFiles.length > 0 && selectedPages.length > 0) {
+                    await buildPdfFromPages(selectedFiles, selectedPages, newFormat);
                   }
                 }
               }}
@@ -192,8 +247,8 @@ export default function Page() {
                   Cookies.set('customFormats', JSON.stringify(updated), { expires: 365 });
                   setLabelFormat('4x6');
                   Cookies.set('labelFormat', '4x6', { expires: 365 });
-                  if (selectedFiles && selectedFiles.length > 0) {
-                    await cropPdfWithFormat(selectedFiles, '4x6', updated);
+                  if (selectedFiles && selectedFiles.length > 0 && selectedPages.length > 0) {
+                    await buildPdfFromPages(selectedFiles, selectedPages, '4x6');
                   }
                 }}
                 className="rounded-lg bg-red-500 hover:bg-red-600 text-white font-semibold text-sm px-3 py-3 transition-colors"
@@ -231,33 +286,40 @@ export default function Page() {
         )}
         {selectedFiles && selectedFiles.length > 0 && (
           <div className="text-center text-neutral-700 dark:text-neutral-300 mt-4 w-full">
-            <p>Selected Files:</p>
+            <p>Selected Pages:</p>
             <div className="flex flex-wrap justify-center gap-2 mt-2">
-              {selectedFiles.map((f, i) => (
+              {selectedPages.map((page, i) => (
                 <div
                   key={i}
                   className="relative group"
+                  onMouseEnter={() => setHoveredPageIndex(i)}
+                  onMouseLeave={() => setHoveredPageIndex(null)}
                 >
+                  <div
+                    className={`rounded-lg px-4 pr-8 py-2 text-sm font-medium shadow-sm w-full transition-colors ${hoveredPageIndex === i
+                        ? "bg-blue-200 dark:bg-blue-700 text-blue-900 dark:text-blue-100"
+                        : "bg-neutral-200 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200"
+                      }`}
+                  >
+                    {page.fileName} - Page {page.pageIndex + 1}
+                  </div>
                   <button
                     onClick={() => {
-                      const newFiles = selectedFiles.filter((_, index) => index !== i);
-                      setFiles(newFiles);
-                      if (newFiles.length === 0) {
+                      const newPages = selectedPages.filter((_, index) => index !== i);
+                      setSelectedPages(newPages);
+                      if (newPages.length === 0) {
                         setCroppedPdf(null);
                         setCroppedPdfUrl(null);
                       } else {
-                        cropPdf(newFiles);
+                        buildPdfFromPages(selectedFiles, newPages, labelFormat);
                       }
                     }}
-                    className="rounded-lg bg-neutral-200 dark:bg-neutral-700 px-4 py-2 text-sm font-medium text-neutral-800 dark:text-neutral-200 shadow-sm transition-all duration-200 hover:bg-neutral-300 dark:hover:bg-neutral-600 w-full"
+                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-110"
                   >
-                    {f.name}
-                  </button>
-                  <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <div className="bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
+                    <div className="bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold hover:bg-red-600">
                       ×
                     </div>
-                  </div>
+                  </button>
                 </div>
               ))}
             </div>
@@ -269,14 +331,15 @@ export default function Page() {
               Preview:
             </p>
             <iframe
-              src={croppedPdfUrl}
-              className="w-full h-[400px] border border-neutral-300 dark:border-neutral-600 rounded"
+              src={`${croppedPdfUrl}#page=${(hoveredPageIndex ?? 0) + 1}`}
+              className="w-full h-[600px] border border-neutral-300 dark:border-neutral-600 rounded"
               title="Cropped PDF Preview"
             ></iframe>
             <div className="flex gap-2 w-full">
               <button
                 onClick={() => {
                   setFiles(null);
+                  setSelectedPages([]);
                   setCroppedPdf(null);
                   setCroppedPdfUrl(null);
                 }}
@@ -284,13 +347,12 @@ export default function Page() {
               >
                 Reset
               </button>
-              <a
-                href={croppedPdfUrl}
-                download
+              <button
+                onClick={downloadCroppedPdf}
                 className="flex-1 rounded-lg bg-green-500 hover:bg-green-600 text-white font-semibold text-sm px-4 py-3 transition-colors flex items-center justify-center gap-2 shadow-md"
               >
                 Download
-              </a>
+              </button>
               <button
                 onClick={printCroppedPdf}
                 className="flex-1 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm px-4 py-3 transition-colors flex items-center justify-center gap-2 shadow-md"

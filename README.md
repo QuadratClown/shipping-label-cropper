@@ -11,6 +11,7 @@ The Shipping Label Cropper is an online tool designed to crop shipping labels to
 - Executes fully local in browser
 - Supports Drag & Drop
 - Supports multiple PDF files at once - all cropped labels will be merged into one file
+- Supports multiple pages per PDF file
 - Easy-to-use interface, only a few clicks required
 - Easy printing of cropped PDF files
 
