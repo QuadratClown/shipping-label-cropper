@@ -7,10 +7,17 @@ import Cookies from "js-cookie";
 import Footer from "@/components/Footer";
 import CustomFormatModal from "@/components/CustomFormatModal";
 
+interface CropArea {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface CustomFormat {
   id: string;
   name: string;
-  cropArea: { x: number, y: number, width: number, height: number };
+  cropArea: CropArea;
 }
 
 interface SelectedPage {
@@ -19,8 +26,13 @@ interface SelectedPage {
   fileName: string;
 }
 
+const BUILTIN_FORMATS: Record<string, CropArea> = {
+  "4x6": { x: 56, y: 53, width: 339, height: 508 },
+  "103x199": { x: 0, y: 475, width: 595, height: 308 },
+};
+
 export default function Page() {
-  const [labelFormat, setLabelFormat] = useState<'4x6' | '103x109' | string>('4x6');
+  const [labelFormat, setLabelFormat] = useState<string>("4x6");
   const [selectedFiles, setFiles] = useState<File[] | null>(null);
   const [selectedPages, setSelectedPages] = useState<SelectedPage[]>([]);
   const [croppedPdf, setCroppedPdf] = useState<Uint8Array | null>(null);
@@ -30,59 +42,41 @@ export default function Page() {
   const [hoveredPageIndex, setHoveredPageIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    const savedFormat = Cookies.get('labelFormat') as string | undefined;
+    let savedFormat = Cookies.get("labelFormat") as string | undefined;
+    // Migrate the old preset id
+    if (savedFormat === "103x109") {
+      savedFormat = "103x199";
+      Cookies.set("labelFormat", savedFormat, { expires: 365 });
+    }
     if (savedFormat) {
       setLabelFormat(savedFormat);
     }
 
-    const savedCustomFormats = Cookies.get('customFormats');
+    const savedCustomFormats = Cookies.get("customFormats");
     if (savedCustomFormats) {
       try {
         setCustomFormats(JSON.parse(savedCustomFormats));
       } catch (e) {
-        console.error('Failed to parse custom formats', e);
+        console.error("Failed to parse custom formats", e);
       }
     }
   }, []);
 
-  const getCropAreaForFormat = (format: string, formats: CustomFormat[] = customFormats): { x: number, y: number, width: number, height: number } | null => {
-    switch (format) {
-      case "4x6":
-        return { x: 56, y: 53, width: 339, height: 508 };
-      case "103x109":
-        return { x: 0, y: 461, width: 666, height: 339 };
-      default:
-        return formats.find((f) => f.id === format)?.cropArea ?? null;
-    }
+  const getCropAreaForFormat = (
+    format: string,
+    formats: CustomFormat[] = customFormats
+  ): CropArea | null => {
+    if (BUILTIN_FORMATS[format]) return BUILTIN_FORMATS[format];
+    return formats.find((f) => f.id === format)?.cropArea ?? null;
   };
 
-  const cropPdfWithFormat = async (files: File[], format: string, formats: CustomFormat[] = customFormats, pagesToInclude?: SelectedPage[]) => {
+  const buildPdfFromPages = async (
+    files: File[],
+    pages: SelectedPage[],
+    format: string,
+    formats: CustomFormat[] = customFormats
+  ) => {
     const cropArea = getCropAreaForFormat(format, formats);
-    if (!cropArea) {
-      alert("Invalid format selected");
-      return;
-    }
-    const mergedPdf = await PDFDocument.create();
-    for (const file of files) {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdfDoc = await PDFDocument.load(arrayBuffer);
-      const pages = pdfDoc.getPages();
-      for (const [i, page] of pages.entries()) {
-        page.setCropBox(cropArea.x, cropArea.y, cropArea.width, cropArea.height);
-      }
-      const pageCopies = await mergedPdf.copyPages(pdfDoc, pages.keys().toArray())
-      for (const page of pageCopies) {
-        mergedPdf.addPage(page);
-      }
-    }
-    const croppedPdfBytes = await mergedPdf.save();
-    setCroppedPdf(croppedPdfBytes);
-    const blob = new Blob([croppedPdfBytes as BlobPart], { type: "application/pdf" });
-    setCroppedPdfUrl(URL.createObjectURL(blob));
-  };
-
-  const buildPdfFromPages = async (files: File[], pages: SelectedPage[], format: string) => {
-    const cropArea = getCropAreaForFormat(format);
     if (!cropArea) {
       alert("Invalid format selected");
       return;
@@ -91,28 +85,41 @@ export default function Page() {
 
     for (const pageInfo of pages) {
       const file = files[pageInfo.fileIndex];
-      const arrayBuffer = await file.arrayBuffer();
-      const pdfDoc = await PDFDocument.load(arrayBuffer);
-      const page = pdfDoc.getPage(pageInfo.pageIndex);
-      page.setCropBox(cropArea.x, cropArea.y, cropArea.width, cropArea.height);
+      const src = await PDFDocument.load(await file.arrayBuffer());
+      const srcPage = src.getPage(pageInfo.pageIndex);
 
-      const [pageCopy] = await mergedPdf.copyPages(pdfDoc, [pageInfo.pageIndex]);
-      mergedPdf.addPage(pageCopy);
+      // Clamp the crop area to the real page size
+      const { width: pw, height: ph } = srcPage.getSize();
+      const w = Math.min(cropArea.width, pw - cropArea.x);
+      const h = Math.min(cropArea.height, ph - cropArea.y);
+      if (w <= 0 || h <= 0) {
+        alert("The crop area lies outside the page.");
+        return;
+      }
+
+      // Embed only the crop region, then place it on a page of exactly that size
+      const embedded = await mergedPdf.embedPage(srcPage, {
+        left: cropArea.x,
+        bottom: cropArea.y,
+        right: cropArea.x + w,
+        top: cropArea.y + h,
+      });
+      const page = mergedPdf.addPage([w, h]);
+      page.drawPage(embedded, { x: 0, y: 0 });
     }
 
-    const croppedPdfBytes = await mergedPdf.save();
-    setCroppedPdf(croppedPdfBytes);
-    const blob = new Blob([croppedPdfBytes as BlobPart], { type: "application/pdf" });
+    const bytes = await mergedPdf.save();
+    setCroppedPdf(bytes);
+    const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
     setCroppedPdfUrl(URL.createObjectURL(blob));
   };
 
   const cropPdf = async (files: File[]) => {
-    // Extract all pages from all files
+    // Collect all pages of all files
     const allPages: SelectedPage[] = [];
     for (let fileIdx = 0; fileIdx < files.length; fileIdx++) {
       const file = files[fileIdx];
-      const arrayBuffer = await file.arrayBuffer();
-      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const pdfDoc = await PDFDocument.load(await file.arrayBuffer());
       const pageCount = pdfDoc.getPageCount();
       for (let pageIdx = 0; pageIdx < pageCount; pageIdx++) {
         allPages.push({
@@ -126,7 +133,7 @@ export default function Page() {
     await buildPdfFromPages(files, allPages, labelFormat);
   };
 
-  const handleAddCustomFormat = (formatName: string, cropArea: { x: number, y: number, width: number, height: number }) => {
+  const handleAddCustomFormat = (formatName: string, cropArea: CropArea) => {
     const newFormat: CustomFormat = {
       id: `custom-${Date.now()}`,
       name: formatName,
@@ -135,19 +142,19 @@ export default function Page() {
 
     const updatedFormats = [...customFormats, newFormat];
     setCustomFormats(updatedFormats);
-    Cookies.set('customFormats', JSON.stringify(updatedFormats), { expires: 365 });
+    Cookies.set("customFormats", JSON.stringify(updatedFormats), { expires: 365 });
     setLabelFormat(newFormat.id);
-    Cookies.set('labelFormat', newFormat.id, { expires: 365 });
+    Cookies.set("labelFormat", newFormat.id, { expires: 365 });
     setIsCustomModalOpen(false);
 
-    // Trigger recrop with the new format if files are selected
+    // Rebuild with the new format (pass the updated list, state is not updated yet)
     if (selectedFiles && selectedFiles.length > 0 && selectedPages.length > 0) {
-      buildPdfFromPages(selectedFiles, selectedPages, newFormat.id);
+      buildPdfFromPages(selectedFiles, selectedPages, newFormat.id, updatedFormats);
     }
   };
 
   const onDrop = async (acceptedFiles: File[]) => {
-    let files: File[] = [];
+    const files: File[] = [];
     for (const file of acceptedFiles) {
       if (file.type === "application/pdf") {
         files.push(file);
@@ -169,14 +176,14 @@ export default function Page() {
       const blob = new Blob([croppedPdf as BlobPart], { type: "application/pdf" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      
-      // Get unique files from selected pages
-      const uniqueFiles = new Set(selectedPages.map(p => p.fileName));
-      
-      link.download = `${uniqueFiles.size === 1 ?
-        Array.from(uniqueFiles)[0].replace(".pdf", "") :
-        `${new Date().toISOString().split("T")[0]}`
-        }_Shipping-labels_cropped.pdf`;
+
+      const uniqueFiles = new Set(selectedPages.map((p) => p.fileName));
+
+      link.download = `${
+        uniqueFiles.size === 1
+          ? Array.from(uniqueFiles)[0].replace(".pdf", "")
+          : `${new Date().toISOString().split("T")[0]}`
+      }_Shipping-labels_cropped.pdf`;
       link.click();
     }
   };
@@ -224,7 +231,7 @@ export default function Page() {
                   setIsCustomModalOpen(true);
                 } else {
                   setLabelFormat(newFormat);
-                  Cookies.set('labelFormat', newFormat, { expires: 365 });
+                  Cookies.set("labelFormat", newFormat, { expires: 365 });
                   if (selectedFiles && selectedFiles.length > 0 && selectedPages.length > 0) {
                     await buildPdfFromPages(selectedFiles, selectedPages, newFormat);
                   }
@@ -233,22 +240,24 @@ export default function Page() {
               className="flex-1 rounded-lg border-2 border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-3 text-sm font-medium text-neutral-900 dark:text-neutral-100 shadow-sm transition-all duration-200 cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 focus:border-blue-500"
             >
               <option value="4x6">DHL A4 (4" × 6")</option>
-              <option value="103x109">DHL A4 (103mm × 109mm)</option>
+              <option value="103x199">DHL A4 (103mm × 199mm)</option>
               {customFormats.map((format) => (
-                <option key={format.id} value={format.id}>{format.name}</option>
+                <option key={format.id} value={format.id}>
+                  {format.name}
+                </option>
               ))}
               <option value="__add_custom__">+ Add Custom Format</option>
             </select>
-            {labelFormat.startsWith('custom-') && (
+            {labelFormat.startsWith("custom-") && (
               <button
                 onClick={async () => {
                   const updated = customFormats.filter((f) => f.id !== labelFormat);
                   setCustomFormats(updated);
-                  Cookies.set('customFormats', JSON.stringify(updated), { expires: 365 });
-                  setLabelFormat('4x6');
-                  Cookies.set('labelFormat', '4x6', { expires: 365 });
+                  Cookies.set("customFormats", JSON.stringify(updated), { expires: 365 });
+                  setLabelFormat("4x6");
+                  Cookies.set("labelFormat", "4x6", { expires: 365 });
                   if (selectedFiles && selectedFiles.length > 0 && selectedPages.length > 0) {
-                    await buildPdfFromPages(selectedFiles, selectedPages, '4x6');
+                    await buildPdfFromPages(selectedFiles, selectedPages, "4x6", updated);
                   }
                 }}
                 className="rounded-lg bg-red-500 hover:bg-red-600 text-white font-semibold text-sm px-3 py-3 transition-colors"
@@ -270,10 +279,11 @@ export default function Page() {
         {!croppedPdf && (
           <div
             {...getRootProps()}
-            className={`flex flex-col items-center justify-center w-full border-2 border-dashed rounded-lg text-center text-sm cursor-pointer backdrop-blur-sm gap-4 mt-12 p-6 transition-colors duration-200 ${isDragActive
-              ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-400"
-              : "border-neutral-400 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-500"
-              }`}
+            className={`flex flex-col items-center justify-center w-full border-2 border-dashed rounded-lg text-center text-sm cursor-pointer backdrop-blur-sm gap-4 mt-12 p-6 transition-colors duration-200 ${
+              isDragActive
+                ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-400"
+                : "border-neutral-400 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-500"
+            }`}
           >
             <input {...getInputProps({ accept: "application/pdf" })} />
             <CloudUpload className="text-5xl text-neutral-500 w-10 h-10" />
@@ -296,10 +306,11 @@ export default function Page() {
                   onMouseLeave={() => setHoveredPageIndex(null)}
                 >
                   <div
-                    className={`rounded-lg px-4 pr-8 py-2 text-sm font-medium shadow-sm w-full transition-colors ${hoveredPageIndex === i
+                    className={`rounded-lg px-4 pr-8 py-2 text-sm font-medium shadow-sm w-full transition-colors ${
+                      hoveredPageIndex === i
                         ? "bg-blue-200 dark:bg-blue-700 text-blue-900 dark:text-blue-100"
                         : "bg-neutral-200 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200"
-                      }`}
+                    }`}
                   >
                     {page.fileName} - Page {page.pageIndex + 1}
                   </div>
