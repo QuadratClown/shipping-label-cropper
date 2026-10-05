@@ -9,6 +9,43 @@ interface CustomFormatModalProps {
   onFormatAdded: (formatName: string, cropArea: {x: number, y: number, width: number, height: number}) => void;
 }
 
+const ASPECT_SEPARATORS = [":", "x", "X", "/"];
+
+function parseAspectRatio(text: string): number | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  let rawWidth: string | null = null;
+  let rawHeight: string | null = null;
+  for (const sep of ASPECT_SEPARATORS) {
+    const idx = trimmed.indexOf(sep);
+    if (idx !== -1) {
+      rawWidth = trimmed.slice(0, idx);
+      rawHeight = trimmed.slice(idx + 1);
+      break;
+    }
+  }
+  if (rawWidth === null || rawHeight === null) return null;
+
+  const width = parseFloat(rawWidth.trim());
+  const height = parseFloat(rawHeight.trim());
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  return width / height;
+}
+
+function swapAspectRatioText(text: string): string {
+  const trimmed = text.trim();
+  for (const sep of ASPECT_SEPARATORS) {
+    const idx = trimmed.indexOf(sep);
+    if (idx !== -1) {
+      const rawWidth = trimmed.slice(0, idx).trim();
+      const rawHeight = trimmed.slice(idx + 1).trim();
+      return `${rawHeight}:${rawWidth}`;
+    }
+  }
+  return text;
+}
+
 const CustomFormatModal: React.FC<CustomFormatModalProps> = ({
   isOpen,
   onClose,
@@ -18,6 +55,11 @@ const CustomFormatModal: React.FC<CustomFormatModalProps> = ({
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [formatName, setFormatName] = useState("");
   const [selectedCropArea, setSelectedCropArea] = useState<{x: number, y: number, width: number, height: number} | null>(null);
+  const [aspectRatioText, setAspectRatioText] = useState("");
+  const [pageCount, setPageCount] = useState(1);
+  const [pageIndex, setPageIndex] = useState(0);
+
+  const aspectRatio = parseAspectRatio(aspectRatioText);
 
   const onDrop = (acceptedFiles: File[]) => {
     const file = acceptedFiles.find((f) => f.type === "application/pdf");
@@ -25,6 +67,10 @@ const CustomFormatModal: React.FC<CustomFormatModalProps> = ({
       setPdfFile(file);
       const url = URL.createObjectURL(file);
       setPdfUrl(url);
+      setSelectedCropArea(null);
+      setAspectRatioText("");
+      setPageCount(1);
+      setPageIndex(0);
     } else {
       alert("Please upload a PDF file.");
     }
@@ -53,11 +99,27 @@ const CustomFormatModal: React.FC<CustomFormatModalProps> = ({
     setPdfUrl(null);
     setFormatName("");
     setSelectedCropArea(null);
+    setAspectRatioText("");
+    setPageCount(1);
+    setPageIndex(0);
   };
 
   const handleClose = () => {
     resetModal();
     onClose();
+  };
+
+  const handleChangePdf = () => {
+    setPdfFile(null);
+    setPdfUrl(null);
+    setSelectedCropArea(null);
+    setAspectRatioText("");
+    setPageCount(1);
+    setPageIndex(0);
+  };
+
+  const handleSwapAspectRatio = () => {
+    setAspectRatioText((text) => swapAspectRatioText(text));
   };
 
   if (!isOpen) return null;
@@ -112,13 +174,64 @@ const CustomFormatModal: React.FC<CustomFormatModalProps> = ({
                 />
               </div>
 
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block font-semibold text-sm text-neutral-700 dark:text-neutral-300 mb-2">
+                    Aspect Ratio (W:H)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={aspectRatioText}
+                      onChange={(e) => setAspectRatioText(e.target.value)}
+                      placeholder="optional, e.g. 100:150"
+                      className="flex-1 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 px-4 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSwapAspectRatio}
+                      title="Swap width and height"
+                      className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                    >
+                      ⇄
+                    </button>
+                  </div>
+                </div>
+
+                {pageCount > 1 && (
+                  <div>
+                    <label className="block font-semibold text-sm text-neutral-700 dark:text-neutral-300 mb-2">
+                      Page
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={pageCount}
+                      value={pageIndex + 1}
+                      onChange={(e) => {
+                        const value = Math.min(pageCount, Math.max(1, Number(e.target.value) || 1));
+                        setPageIndex(value - 1);
+                      }}
+                      className="w-20 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 px-4 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block font-semibold text-sm text-neutral-700 dark:text-neutral-300 mb-2">
-                  Select Crop Area (click and drag on the PDF)
+                  Select Crop Area
                 </label>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-2">
+                  Click and drag on the page to select the crop area. Once drawn, drag an edge or
+                  corner to resize it, or its interior to move it.
+                </p>
                 <PdfCropSelector
                   pdfUrl={pdfUrl}
+                  pageIndex={pageIndex}
+                  aspectRatio={aspectRatio}
                   onCropAreaSelect={setSelectedCropArea}
+                  onPageCountChange={setPageCount}
                 />
               </div>
 
@@ -130,10 +243,7 @@ const CustomFormatModal: React.FC<CustomFormatModalProps> = ({
 
               <div className="flex gap-2 justify-end pt-4">
                 <button
-                  onClick={() => {
-                    setPdfFile(null);
-                    setPdfUrl(null);
-                  }}
+                  onClick={handleChangePdf}
                   className="rounded-lg border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
                 >
                   Change PDF
