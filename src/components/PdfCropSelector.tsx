@@ -525,7 +525,7 @@ const PdfCropSelector: React.FC<PdfCropSelectorProps> = ({
           <p className="text-neutral-500 dark:text-neutral-400">Loading PDF...</p>
         </div>
       )}
-      <div className="relative w-full h-[600px] overflow-auto flex justify-center items-center">
+      <div className="relative w-full h-[600px] overflow-auto">
         <canvas
           ref={canvasRef}
           onMouseDown={handleMouseDown}
@@ -533,6 +533,7 @@ const PdfCropSelector: React.FC<PdfCropSelectorProps> = ({
           onMouseUp={finalizeDrag}
           onMouseLeave={finalizeDrag}
           onWheel={handleWheel}
+          className="mx-auto"
           style={{ display: isLoading ? "none" : "block", cursor: "crosshair" }}
         />
       </div>
