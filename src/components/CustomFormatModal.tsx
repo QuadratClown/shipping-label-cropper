@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { CloudUpload, X } from "lucide-react";
+import { CloudUpload, X, MousePointerClick, Maximize2, Move } from "lucide-react";
 import PdfCropSelector from "./PdfCropSelector";
 
 interface CustomFormatModalProps {
@@ -222,10 +222,11 @@ const CustomFormatModal: React.FC<CustomFormatModalProps> = ({
                 <label className="block font-semibold text-sm text-neutral-700 dark:text-neutral-300 mb-2">
                   Select Crop Area
                 </label>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-2">
-                  Click and drag on the page to select the crop area. Once drawn, drag an edge or
-                  corner to resize it, or its interior to move it. Hold the middle mouse button to move the view.
-                </p>
+                <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400 mb-2">
+                  <span className="inline-flex items-center gap-1"><MousePointerClick size={14} /> Click and drag to select</span>
+                  <span className="inline-flex items-center gap-1"><Maximize2 size={14} /> Drag an edge or corner to resize</span>
+                  <span className="inline-flex items-center gap-1"><Move size={14} /> Drag the selection to move it</span>
+                </div>
                 <PdfCropSelector
                   pdfUrl={pdfUrl}
                   pageIndex={pageIndex}

@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import * as pdfjsLib from "pdfjs-dist";
+import { ZoomIn, Hand } from "lucide-react";
 
 // Set up the worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
@@ -558,9 +559,10 @@ const PdfCropSelector: React.FC<PdfCropSelectorProps> = ({
         />
       </div>
       {!isLoading && (
-        <div className="w-full px-4 py-2 bg-neutral-100 dark:bg-neutral-700 text-center text-xs text-neutral-600 dark:text-neutral-400">
-          Zoom: {(zoom * 100).toFixed(0)}% (Shift + scroll to zoom) · Drag an edge or corner to
-          resize the selection, or its interior to move it.
+        <div className="w-full px-4 py-2 bg-neutral-100 dark:bg-neutral-700 flex flex-wrap items-center justify-center gap-4 text-xs text-neutral-600 dark:text-neutral-400">
+          <span>Zoom: {(zoom * 100).toFixed(0)}%</span>
+          <span className="inline-flex items-center gap-1"><ZoomIn size={14} /> Shift + scroll to zoom</span>
+          <span className="inline-flex items-center gap-1"><Hand size={14} /> Middle mouse to pan</span>
         </div>
       )}
     </div>
