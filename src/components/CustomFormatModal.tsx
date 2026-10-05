@@ -126,7 +126,7 @@ const CustomFormatModal: React.FC<CustomFormatModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-lg max-w-5xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center p-6 border-b border-neutral-200 dark:border-neutral-700">
           <h2 className="text-2xl font-bold text-neutral-800 dark:text-neutral-200">
             Create Custom Format
@@ -224,7 +224,7 @@ const CustomFormatModal: React.FC<CustomFormatModalProps> = ({
                 </label>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-2">
                   Click and drag on the page to select the crop area. Once drawn, drag an edge or
-                  corner to resize it, or its interior to move it.
+                  corner to resize it, or its interior to move it. Hold the middle mouse button to move the view.
                 </p>
                 <PdfCropSelector
                   pdfUrl={pdfUrl}

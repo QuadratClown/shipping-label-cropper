@@ -276,6 +276,8 @@ const PdfCropSelector: React.FC<PdfCropSelectorProps> = ({
 
   const selectionRef = useRef<PixelRect | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const panRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
 
   const redraw = () => {
     const canvas = canvasRef.current;
@@ -449,6 +451,13 @@ const PdfCropSelector: React.FC<PdfCropSelectorProps> = ({
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isLoading) return;
+    if (e.button === 1) {
+      e.preventDefault();
+      const container = containerRef.current;
+      if (!container) return;
+      panRef.current = { x: e.clientX, y: e.clientY, scrollLeft: container.scrollLeft, scrollTop: container.scrollTop };
+      return;
+    }
     const { x, y } = getCanvasCoords(e);
     const sel = selectionRef.current;
     const hit = hitTest(x, y, sel);
@@ -472,6 +481,13 @@ const PdfCropSelector: React.FC<PdfCropSelectorProps> = ({
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (panRef.current) {
+      const container = containerRef.current;
+      if (!container) return;
+      container.scrollLeft = panRef.current.scrollLeft - (e.clientX - panRef.current.x);
+      container.scrollTop = panRef.current.scrollTop - (e.clientY - panRef.current.y);
+      return;
+    }
     const { x, y } = getCanvasCoords(e);
     const drag = dragRef.current;
 
@@ -506,6 +522,10 @@ const PdfCropSelector: React.FC<PdfCropSelectorProps> = ({
   };
 
   const finalizeDrag = () => {
+    if (panRef.current) {
+      panRef.current = null;
+      return;
+    }
     if (!dragRef.current) return;
     dragRef.current = null;
     emitCropArea();
@@ -525,7 +545,7 @@ const PdfCropSelector: React.FC<PdfCropSelectorProps> = ({
           <p className="text-neutral-500 dark:text-neutral-400">Loading PDF...</p>
         </div>
       )}
-      <div className="relative w-full h-[600px] overflow-auto">
+      <div ref={containerRef} className="relative w-full h-[600px] overflow-auto">
         <canvas
           ref={canvasRef}
           onMouseDown={handleMouseDown}
